@@ -1,0 +1,5 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="js_debug_after_npm_start" type="JavascriptDebugType" uri="http://localhost:3000">
+    <method v="2" />
+  </configuration>
+</component>
