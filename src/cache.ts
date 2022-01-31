@@ -1,13 +1,17 @@
 import { createTimestamp, getCurrentTimeInSec } from "./utils";
 import axios, { AxiosResponse } from "axios";
 import { Currency } from "./App";
+import { Dispatch, SetStateAction } from "react";
+
+// export const cache = new Map();
 
 export function doSomething(
-  tempCache: Map<any, any>,
+  cache: Map<any, any>,
+  setCache: Dispatch<SetStateAction<any>>,
   baseCurrency: Currency
 ): void {
   const url = `http://45-79-65-143.ip.linodeusercontent.com:8082/${baseCurrency}`;
-  const currencyObjInCache = tempCache.get(url);
+  const currencyObjInCache = cache.get(url);
   if (!currencyObjInCache) {
     fetchDataAndUpdateCache(url);
   } else if (currencyObjInCache) {
@@ -31,17 +35,20 @@ export function doSomething(
     const maxItemsInCache = 2;
     for (const [key, value] of Object.entries(response.data)) {
       // If cache is full (has 2 items), delete last item.
-      if (tempCache.size === maxItemsInCache) {
+      if (cache.size === maxItemsInCache) {
         // ! is a non-null assertion operator
-        const lastElement = Array.from(tempCache).pop()!;
-        tempCache.delete(lastElement[0]);
+        const lastElement = Array.from(cache).pop()!;
+        cache.delete(lastElement[0]);
       }
       // Add new data to cache.
-      tempCache.set(url, {
+      cache.set(url, {
         timestamp: createTimestamp(),
         [key]: value,
       });
-      console.log("Cache miss :( ", tempCache);
+      console.log("Cache miss :( ", cache);
+      const newMap = new Map(cache);
+      console.log("New Map ==========", newMap);
+      setCache(newMap);
     }
   }
 }

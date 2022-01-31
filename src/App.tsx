@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./styles/App.css";
 import { doSomething } from "./cache";
 
@@ -24,17 +24,27 @@ export type Currency = "USD" | "EUR" | "GBP";
 // type Cache = Map<string, CurrencyValue>;
 
 const App = () => {
-  const tempCache = useMemo(() => new Map(), []);
+  const [cache, setCache] = useState(new Map());
+
+  const keys: JSX.Element[] = [];
+  for (const [key, value] of cache.entries()) {
+    keys.push(<p key={key}>{key}</p>);
+  }
 
   return (
     <div className="App">
-      <button onClick={() => doSomething(tempCache, "USD")}>
+      <button onClick={() => doSomething(cache, setCache, "USD")}>
         Get USD rates
       </button>
-      <button>Get EUR rates</button>
-      <button>Get GBP rates</button>
+      <button onClick={() => doSomething(cache, setCache, "EUR")}>
+        Get EUR rates
+      </button>
+      <button onClick={() => doSomething(cache, setCache, "GBP")}>
+        Get GBP rates
+      </button>
       <div>
-        <h3>Cache</h3>
+        <h1>Cache</h1>
+        <p>{keys}</p>
       </div>
     </div>
   );
