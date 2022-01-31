@@ -11,6 +11,13 @@
 // DO THIS:
 // Another option is to listen for some kind of event like page load, onClick, then
 // first check the cache (cache needs to be made when the application first runs).
+
+// NO1. Make the cache. What is the shape of cache and where is cache living?
+// Shape of cache:
+// const cache = {
+//
+// }
+
 //    1. If the data is in the cache && the data is not out of date, the give the data
 // whoever requested it.
 //    2. If the data is in the cache && out of date, fetch for new data, then give the
@@ -27,22 +34,9 @@
 
 import axios from "axios";
 
-const fetchCurrencyData = async (baseCurrency: string) => {
+const fetchCurrencyData = (url: string, baseCurrency: string): Promise<any> => {
   // Fetch the data from my HTTP server
-  const url = `http://45-79-65-143.ip.linodeusercontent.com:8082/${baseCurrency}`;
-  // const url = `http://localhost:8082/${baseCurrency}`;
-  // await immediately returns Response object.
-  const data = await axios.get(url);
-  console.log(data.data);
-  // console.log(data.data)
+  return axios.get(url);
 };
 
 export { fetchCurrencyData };
-
-// const fetchCurrencyData = async () => {
-//   // Fetch the data from my HTTP server
-//   const url = "http://45-79-65-143.ip.linodeusercontent.com:8082/USD"
-//   const payloadPromise = await fetch(url)
-//   console.log(payloadPromise)
-//
-// }
