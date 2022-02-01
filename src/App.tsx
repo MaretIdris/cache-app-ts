@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import "./styles/App.css";
-import { doSomething } from "./cache";
+import { fetchExchangeRate } from "./cache";
+import { FancyBorder } from "./FancyBorder";
+import { RenderKeys } from "./RenderKeysProps";
 
 export type Currency = "USD" | "EUR" | "GBP";
 
@@ -23,31 +25,34 @@ export type Currency = "USD" | "EUR" | "GBP";
 //
 // type Cache = Map<string, CurrencyValue>;
 
-const App = () => {
+export const App = () => {
   const [cache, setCache] = useState(new Map());
-
-  const keys: JSX.Element[] = [];
-  for (const [key, value] of cache.entries()) {
-    keys.push(<p key={key}>{key}</p>);
-  }
 
   return (
     <div className="App">
-      <button onClick={() => doSomething(cache, setCache, "USD")}>
+      <button onClick={() => fetchExchangeRate(cache, setCache, "USD", 86400)}>
         Get USD rates
       </button>
-      <button onClick={() => doSomething(cache, setCache, "EUR")}>
+      <button onClick={() => fetchExchangeRate(cache, setCache, "EUR", 86400)}>
         Get EUR rates
       </button>
-      <button onClick={() => doSomething(cache, setCache, "GBP")}>
+      <button onClick={() => fetchExchangeRate(cache, setCache, "GBP", 86400)}>
         Get GBP rates
       </button>
-      <div>
+      <FancyBorder color="yellow" padding="20">
         <h1>Cache</h1>
-        <p>{keys}</p>
-      </div>
+        <RenderKeys cache={cache} />
+        {/*Don't delete the line below. It shows another way to render keys.*/}
+        {/*{renderKeys(cache)}*/}
+      </FancyBorder>
     </div>
   );
 };
 
-export default App;
+// function renderKeys(cache: Map<any, any>): JSX.Element {
+//   const keys: JSX.Element[] = [];
+//   for (const [key, value] of cache.entries()) {
+//     keys.push(<p key={key}>{key}</p>);
+//   }
+//   return <div>{keys.reverse()}</div>;
+// }

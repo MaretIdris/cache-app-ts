@@ -3,24 +3,33 @@ import axios, { AxiosResponse } from "axios";
 import { Currency } from "./App";
 import { Dispatch, SetStateAction } from "react";
 
-// export const cache = new Map();
+// Eviction policies: leastRecentyUsed (LRU) and leastFrequentlyUsed
 
-export function doSomething(
+// const cacheConfig = {
+//   cache
+//   dataNeedsRefreshInSec: 86400,
+//   evictionPolicy:
+//
+// }
+
+// When I make a Cache specify the config options: size, when to refresh data, eviction policy
+
+export function fetchExchangeRate(
   cache: Map<any, any>,
   setCache: Dispatch<SetStateAction<any>>,
-  baseCurrency: Currency
+  baseCurrency: Currency,
+  dataNeedsRefreshingInSec: number
 ): void {
   const url = `http://45-79-65-143.ip.linodeusercontent.com:8082/${baseCurrency}`;
-  const currencyObjInCache = cache.get(url);
-  if (!currencyObjInCache) {
+  const currencyInCache = cache.get(url);
+
+  if (!currencyInCache) {
     fetchDataAndUpdateCache(url);
-  } else if (currencyObjInCache) {
+  } else if (currencyInCache) {
     const ageOfFetchedDataInSec = Math.floor(
-      getCurrentTimeInSec() - currencyObjInCache.timestamp
+      getCurrentTimeInSec() - currencyInCache.timestamp
     );
-    const dayInSec = 86400;
-    const dataIsOlderThanOneDay = ageOfFetchedDataInSec >= dayInSec;
-    if (dataIsOlderThanOneDay) {
+    if (ageOfFetchedDataInSec >= dataNeedsRefreshingInSec) {
       fetchDataAndUpdateCache(url);
     }
     console.log("Cache hit :)");
@@ -37,8 +46,8 @@ export function doSomething(
       // If cache is full (has 2 items), delete last item.
       if (cache.size === maxItemsInCache) {
         // ! is a non-null assertion operator
-        const lastElement = Array.from(cache).pop()!;
-        cache.delete(lastElement[0]);
+        const firstKeyInMap = Array.from(cache)![0][0];
+        cache.delete(firstKeyInMap);
       }
       // Add new data to cache.
       cache.set(url, {
@@ -46,9 +55,9 @@ export function doSomething(
         [key]: value,
       });
       console.log("Cache miss :( ", cache);
-      const newMap = new Map(cache);
-      console.log("New Map ==========", newMap);
-      setCache(newMap);
+
+      const mapWithNewReference = new Map(cache);
+      setCache(mapWithNewReference);
     }
   }
 }
