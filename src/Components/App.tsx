@@ -4,40 +4,17 @@ import { CacheConfig, CurrencyCache } from "../cache";
 import { FancyBorder } from "./FancyBorder";
 import { RenderKeys } from "./RenderKeys";
 
-export type Currency = "USD" | "EUR" | "GBP";
-
-export interface BaseUSD {
-  timestamp: number;
-  USD: Partial<Record<Currency, number>>;
-  // USD: Partial<{ [P in Currency]: number }>;
-}
-
-export interface BaseEUR {
-  timestamp: number;
-  EUR: Partial<Record<Currency, number>>;
-}
-
-export interface BaseGBP {
-  timestamp: number;
-  GBP: Partial<Record<Currency, number>>;
-}
-
-export type CurrencyValue = BaseUSD | BaseEUR | BaseGBP;
-
-export type CacheMap = Map<string, CurrencyValue>;
-
 export const App = () => {
   const cacheConfig: CacheConfig = {
-    size: 2,
+    maxCacheSize: 3,
     dataNeedsRefreshingInSec: 86400,
-    evictionPolicy: "Least Recently Used",
+    // evictionPolicy: "Least Recently Used",
+    evictionPolicy: "Least Frequently Used",
   };
 
   const [cache, setCache] = useState<CurrencyCache>(
     new CurrencyCache(cacheConfig)
   );
-  console.log("App => ", cache);
-  console.log(typeof cache.fetchExchangeRate);
 
   return (
     <div className="App">
@@ -50,9 +27,17 @@ export const App = () => {
       <button onClick={() => cache.fetchExchangeRate("GBP", setCache)}>
         Get GBP rates
       </button>
+      <button onClick={() => cache.fetchExchangeRate("CAD", setCache)}>
+        Get CAD rates
+      </button>
       <FancyBorder color="yellow" padding="20">
         <h1>Cache</h1>
-        <RenderKeys cacheMap={cache.cacheMap} />
+        <RenderKeys
+          cacheMap={cache.cacheMap}
+          evictionPolicy={cache.evictionPolicy}
+          renderOrder="Ascending"
+          // renderOrder="Descending"
+        />
         {/*Don't delete the line below. It shows another way to render keys.*/}
         {/*{renderKeys(cache)}*/}
       </FancyBorder>

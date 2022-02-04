@@ -1,20 +1,47 @@
 import { createTimestamp, getCurrentTimeInSec } from "./utils";
 import axios, { AxiosResponse } from "axios";
-import {
-  BaseEUR,
-  BaseGBP,
-  BaseUSD,
-  CacheMap,
-  Currency,
-  CurrencyValue,
-} from "./Components/App";
 import { Dispatch, SetStateAction } from "react";
 import _ from "lodash";
 
-type EvictionPolicy = "Least Recently Used" | "Least Frequently Used";
+export type Currency = "USD" | "EUR" | "GBP" | "CAD";
+
+export interface BaseUSD {
+  timestamp: number;
+  lastAccessTime: number;
+  popularity: number;
+  USD: Partial<Record<Currency, number>>;
+  // USD: Partial<{ [P in Currency]: number }>;
+}
+
+export interface BaseEUR {
+  timestamp: number;
+  lastAccessTime: number;
+  popularity: number;
+  EUR: Partial<Record<Currency, number>>;
+}
+
+export interface BaseGBP {
+  timestamp: number;
+  lastAccessTime: number;
+  popularity: number;
+  GBP: Partial<Record<Currency, number>>;
+}
+
+export interface BaseCAD {
+  timestamp: number;
+  lastAccessTime: number;
+  popularity: number;
+  CAD: Partial<Record<Currency, number>>;
+}
+
+export type CurrencyValue = BaseUSD | BaseEUR | BaseGBP | BaseCAD;
+
+export type CacheMap = Map<string, CurrencyValue>;
+
+export type EvictionPolicy = "Least Recently Used" | "Least Frequently Used";
 
 export interface CacheConfig {
-  size: number;
+  maxCacheSize: number;
   dataNeedsRefreshingInSec: number;
   evictionPolicy: EvictionPolicy;
 }
@@ -26,15 +53,19 @@ export class CurrencyCache {
   dataNeedsRefreshingInSec: number;
   evictionPolicy: EvictionPolicy;
 
-  constructor({ size, dataNeedsRefreshingInSec, evictionPolicy }: CacheConfig) {
-    this.cacheSize = size;
+  constructor({
+    maxCacheSize,
+    dataNeedsRefreshingInSec,
+    evictionPolicy,
+  }: CacheConfig) {
+    this.cacheSize = maxCacheSize;
     this.dataNeedsRefreshingInSec = dataNeedsRefreshingInSec;
     this.evictionPolicy = evictionPolicy;
   }
 
   static clone(oldCurrencyCache: CurrencyCache): CurrencyCache {
     let tempRef = new CurrencyCache({
-      size: oldCurrencyCache.cacheSize,
+      maxCacheSize: oldCurrencyCache.cacheSize,
       dataNeedsRefreshingInSec: oldCurrencyCache.dataNeedsRefreshingInSec,
       evictionPolicy: oldCurrencyCache.evictionPolicy,
     });
@@ -49,22 +80,44 @@ export class CurrencyCache {
   ): void => {
     // Internal functions:
     const addDataToCache = (response: AxiosResponse<any>) => {
-      for (const [key, value] of Object.entries(response.data)) {
-        // If this.cacheMap is full (has 2 items), delete last item.
-        if (this.cacheMap.size === this.cacheSize) {
-          // ! is a non-null assertion operator
-          const firstKeyInMap = Array.from(this.cacheMap)![0][0];
-          this.cacheMap.delete(firstKeyInMap);
+      const evictLeastRecentlyUsed = () => {
+        // Sort the array based on lastAccessTime (largest to smallest) and delete the first.
+        const casheArray = Array.from(this.cacheMap);
+        // Sort by lastAccessTime in ascending order (smallest to largest)
+        casheArray.sort((a, b) => a[1].lastAccessTime - b[1].lastAccessTime);
+        const firstElementInCacheArray = casheArray[0][0];
+        this.cacheMap.delete(firstElementInCacheArray);
+      };
+
+      const evictLeastFrequentlyUsed = () => {
+        const cacheArray = Array.from(this.cacheMap);
+        cacheArray.sort((a, b) => a[1].popularity - b[1].popularity);
+        const firstElementInCacheArray = cacheArray[0][0];
+        this.cacheMap.delete(firstElementInCacheArray);
+      };
+
+      // Check if cache is full.
+      if (this.cacheMap.size === this.cacheSize) {
+        switch (this.evictionPolicy) {
+          case "Least Frequently Used":
+            evictLeastFrequentlyUsed();
+            break;
+          case "Least Recently Used":
+            evictLeastRecentlyUsed();
+            break;
         }
-        // Add new data to this.cacheMap.
-        const currencyData = _.cloneDeep(response.data);
-        currencyData.timestamp = createTimestamp();
-
-        this.cacheMap.set(url, currencyData);
-        console.log("Cache miss :( ", this.cacheMap);
-
-        setCache(CurrencyCache.clone(this));
       }
+
+      // Defensively deep copy data which comes back from Axios call.
+      const currencyData = _.cloneDeep(response.data);
+      currencyData.timestamp = createTimestamp();
+      currencyData.lastAccessTime = createTimestamp();
+      currencyData.popularity = 1;
+      this.cacheMap.set(url, currencyData);
+      console.log("Cache miss :( ", this.cacheMap);
+
+      // This will trigger React to rerender the UI.
+      setCache(CurrencyCache.clone(this));
     };
 
     const fetchDataAndUpdateCache = (): void => {
@@ -73,7 +126,7 @@ export class CurrencyCache {
       promise.then(addDataToCache);
     };
 
-    // --------------------------
+    // End of internal functions
 
     const url = `http://45-79-65-143.ip.linodeusercontent.com:8082/${baseCurrency}`;
     const currencyInCache: CurrencyValue | undefined = this.cacheMap.get(url);
@@ -82,21 +135,32 @@ export class CurrencyCache {
       const ageOfFetchedDataInSec = Math.floor(
         getCurrentTimeInSec() - currencyInCache.timestamp
       );
+      // Refresh the data if it's out of date.
       if (ageOfFetchedDataInSec >= this.dataNeedsRefreshingInSec) {
-        fetchDataAndUpdateCache.call(this);
+        fetchDataAndUpdateCache();
+        return;
       }
 
-      // Delete from this.cacheMap and add to this.cacheMap again to reorder for LRU eviction policy.
-      this.cacheMap.delete(`${url}`);
-      console.log(`Cache after deletion: `);
-
-      this.cacheMap.set(`${url}`, currencyInCache);
-      setCache(CurrencyCache.clone(this));
-      console.log("Cache should have been reordered");
-      console.log("Cache hit :)");
+      // Update the eviction policy info when data is fresh in cache.
+      switch (this.evictionPolicy) {
+        case "Least Recently Used":
+          // Populate a new lastAccessTime for the data that was requested.
+          currencyInCache.lastAccessTime = createTimestamp();
+          console.log("Cache hit :)");
+          console.log("Currency in cache hit: ", currencyInCache);
+          setCache(CurrencyCache.clone(this));
+          break;
+        case "Least Frequently Used":
+          // Update the popularity value of the data requested.
+          currencyInCache.popularity += 1;
+          console.log("Cache hit :)");
+          console.log("Currency in cache hit: ", currencyInCache);
+          setCache(CurrencyCache.clone(this));
+          break;
+      }
     }
 
-    if (!currencyInCache) fetchDataAndUpdateCache.call(this);
+    if (!currencyInCache) fetchDataAndUpdateCache();
   };
 }
 

@@ -4,5 +4,5 @@ export function getCurrentTimeInSec() {
 
 export function createTimestamp() {
   const timestampInMillisec = new Date().getTime();
-  return Math.floor(timestampInMillisec / 1000);
+  return timestampInMillisec / 1000;
 }
