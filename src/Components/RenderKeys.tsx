@@ -46,26 +46,6 @@ export function RenderKeys({
     }
   }
 
-  // if (renderOrder === "Ascending") {
-  //   switch (evictionPolicy) {
-  //     case "Least Recently Used":
-  //       keys = sortByAscending("lastAccessTime");
-  //       break;
-  //     case "Least Frequently Used":
-  //       keys = sortByAscending("popularity");
-  //       break;
-  //   }
-  // } else {
-  //   switch (evictionPolicy) {
-  //     case "Least Recently Used":
-  //       keys = sortByDescending("lastAccessTime");
-  //       break;
-  //     case "Least Frequently Used":
-  //       keys = sortByDescending("popularity");
-  //       break;
-  //   }
-  // }
-
   return <>{keys}</>;
 
   function sortByAscending(property: Property): JSX.Element {
