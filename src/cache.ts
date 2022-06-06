@@ -36,7 +36,9 @@ export interface BaseCAD {
 
 export type CurrencyValue = BaseUSD | BaseEUR | BaseGBP | BaseCAD;
 
-export type CacheMap = Map<string, CurrencyValue>;
+export type URL = string;
+
+export type CacheMap = Map<URL, CurrencyValue>;
 
 export type EvictionPolicy = "Least Recently Used" | "Least Frequently Used";
 
@@ -73,6 +75,8 @@ export class CurrencyCache {
     tempRef.cacheMap = new Map(oldCurrencyCache.cacheMap);
     return tempRef;
   }
+
+  
 
   fetchExchangeRate = (
     baseCurrency: Currency,
