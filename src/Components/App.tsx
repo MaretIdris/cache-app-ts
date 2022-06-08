@@ -30,7 +30,7 @@ export const App = () => {
       <button onClick={() => cache.fetchExchangeRate("CAD", setCache)}>
         Get CAD rates
       </button>
-      <FancyBorder color="yellow" padding="20">
+      <FancyBorder color="yellow" padding="20" boxShadow="1px 3px 1px #9E9E9E" margin="20">
         <h1>Cache</h1>
         <RenderKeys
           cacheMap={cache.cacheMap}

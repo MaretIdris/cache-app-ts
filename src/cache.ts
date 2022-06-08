@@ -49,7 +49,6 @@ export interface CacheConfig {
 }
 
 export class CurrencyCache {
-  // Class properties
   cacheMap: CacheMap = new Map();
   cacheSize: number;
   dataNeedsRefreshingInSec: number;
@@ -75,8 +74,6 @@ export class CurrencyCache {
     tempRef.cacheMap = new Map(oldCurrencyCache.cacheMap);
     return tempRef;
   }
-
-  
 
   fetchExchangeRate = (
     baseCurrency: Currency,
