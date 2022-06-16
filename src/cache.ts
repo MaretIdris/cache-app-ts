@@ -75,6 +75,18 @@ export class CurrencyCache {
     return tempRef;
   }
 
+  // TODO: I think there should be a method to check if the data exists in the CurrencyCache and if it's out of date first. 
+  // Then if data needs to be fetched first time or if the data is out of date, then fetch the data
+  // calling the fetchCurrencyData method.
+
+  // getCurrency = (baseCurrency: URL): CurrencyValue  => { 
+  //   if (!this.cacheMap.has(baseCurrency)) { 
+  //     this.fetchExchangeRate(baseCurrency: URL, setCache);
+  //   }
+
+  //   return this.cacheMap.get(baseCurrency)!;
+  // }
+
   fetchExchangeRate = (
     baseCurrency: Currency,
     setCache: Dispatch<SetStateAction<CurrencyCache>>
