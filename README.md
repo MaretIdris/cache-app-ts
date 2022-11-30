@@ -1,14 +1,17 @@
-# Cache app
+# Client-side cache
 
-- Two eviction policies:
+Cache is a data structure and different functions to check/modify it. It is used to store the data in the browser memory and access it quickly.
 
-  - Least Recently Used (LRU)
-  - Least Frequently Used (LFU)
+Implement a class CurrencyCache that has the following properties and methods:
+ - evictionPolicy: Least Recently Used (LRU) or Least Frequently Used (LFU)
+ - maxSize: maximum number of items in the cache
+ - timeWindowInSeconds: time window in seconds to check the does the data needs refreshing
+ - getCurrency: returns the currency of the cache
 
-- You can set the cache max size, eviction policy and time in seconds when
-  data needs refreshing in a config object.
 
 ## The idea behind a cache
+
+- E.g user clicks a button, 
 
 - I have to get currency data
 - before I go to fetch the data from the API endpoint, I want to check if I have
