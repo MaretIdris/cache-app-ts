@@ -1,6 +1,6 @@
-import _  from 'lodash'
+import _ from "lodash";
 
-interface CurrencyCacheInterface {
+export interface CurrencyCacheInterface {
   /** The order of removing the results from the cache when cache is full. */
   evictionPolicy: "Least Recently Used" | "Least Frequently Used";
   /** Indicates the maximum number of items we can store in the cache. After this number we will start purging results from the cache. */
@@ -8,9 +8,10 @@ interface CurrencyCacheInterface {
   /** Time window in seconds after data is old and needs to be fetched again.  */
   dataTimeWindowInSeconds: number;
   /** Returns all the targetCurrencies conversions */
-  getCurrency: (baseCurrency: CurrencyName) => BaseCurrencyConversions;
+  getCurrency?: (baseCurrency: CurrencyName) => BaseCurrencyConversions;
   /** Return target currency value as number. */
   // convert: (baseCurrency: string, targetCurrency: string) => number;
+  fetchData?: (baseCurrency: CurrencyName) => Promise<any>;
 }
 
 type CurrencyName = "USD" | "EUR" | "CAD" | "GBP";
@@ -20,7 +21,9 @@ interface CurrencyInfo {
 }
 // Intersection type.
 type Timestamp = { timestamp: number };
-type BaseCurrencyConversions = Timestamp & Record<CurrencyName, CurrencyInfo>;
+// Partial makes all properties in the type passed to it optional and that's what we want.
+type BaseCurrencyConversions = Timestamp &
+  Partial<Record<CurrencyName, CurrencyInfo>>;
 
 /* We want our data to look like:
   baseCurrency1: {
@@ -55,11 +58,9 @@ type BaseCurrencyConversions = Timestamp & Record<CurrencyName, CurrencyInfo>;
     }
   }
 
-  make a request 
-
 */
 
-class CurrencyCache implements CurrencyCacheInterface {
+class CurrencyCache {
   evictionPolicy: "Least Recently Used" | "Least Frequently Used" =
     "Least Recently Used";
   maxSize: number = 2;
@@ -93,7 +94,7 @@ class CurrencyCache implements CurrencyCacheInterface {
     - Fetch the data.When get the result, clean up the result, add a timestamp and add the result to the cache. if evictionPolicy is LRU update _currencyPopularity. Return the cleaned up result.  
     */
     if (this._cacheIsEmpty()) {
-      const targetCurrencies = this._fetchData(baseCurrency);
+      const targetCurrencies = this.fetchData(baseCurrency);
       const timestampInSec = this._generateTimestampInSec();
       // Make a currency object and store it in the cache.
       this._addCurrencyToCache(baseCurrency, targetCurrencies, timestampInSec);
@@ -116,11 +117,11 @@ class CurrencyCache implements CurrencyCacheInterface {
         value: 1.2,
         code: "GBP",
       },
-    } as BaseCurrencyConversions;
+    };
   };
 
   /** Keeping the data fetching function simple. It only fetches data. */
-  private _fetchData = async (baseCurrency: string) => {
+  fetchData = async (baseCurrency: string) => {
     // Make a request to the API and return the result.
     const apiKey = "ZVuvaZFlVxMQOVyvtlvH0CmDBMMKQd6SB6FPvfeR"; // <- Add your API key here. You can get it from https://www.currencyconverterapi.com/
     const currenciesToFetch = this._allCurrencies
@@ -152,9 +153,8 @@ class CurrencyCache implements CurrencyCacheInterface {
     timestamp: number
   ) => {
     const { data: currencyData } = data;
-    // TODO: change the shallow copy to deep copy.
     const currencyDataCopy = _.cloneDeep(currencyData);
-    this._cache.set(baseCurrency, {...currencyDataCopy, timestamp });
+    this._cache.set(baseCurrency, { ...currencyDataCopy, timestamp });
   };
 
   private _generateTimestampInSec = () => {
@@ -169,16 +169,10 @@ class CurrencyCache implements CurrencyCacheInterface {
 export default CurrencyCache;
 
 /* 
-Base currency USD, targetCurrencies EUR, CAD, USD:
+The data that we get from the API is in the following format:
 
-Request URL
-// Default base currency is USD:
-https://api.currencyapi.com/v3/latest?apikey=ZVuvaZFlVxMQOVyvtlvH0CmDBMMKQd6SB6FPvfeR&currencies=EUR%2CCAD%2CUSD
-// Request with base currency set to EUR
-https://api.currencyapi.com/v3/latest?apikey=ZVuvaZFlVxMQOVyvtlvH0CmDBMMKQd6SB6FPvfeR&currencies=USD%2CEUR%2CCAD&base_currency=EUR
-
-// Request with baseCurrency not included in the results:
-https://api.currencyapi.com/v3/latest?apikey=ZVuvaZFlVxMQOVyvtlvH0CmDBMMKQd6SB6FPvfeR&currencies=USD%2CCAD&base_currency=EUR
+// Request with base currency set to USD:
+https://api.currencyapi.com/v3/latest?apikey={apikey}&currencies=CAD%2CEUR&base_currency=USD
 
 BaseCurrency USD:
 {
@@ -193,13 +187,13 @@ BaseCurrency USD:
     "EUR": {
       "code": "EUR",
       "value": 0.959362
-    },
-    "USD": {
-      "code": "USD",
-      "value": 1
     }
   }
 }
+---------------------------
+
+// Request with base currency set to EUR:
+https://api.currencyapi.com/v3/latest?apikey={apikey}&currencies=CAD%2CUSD&base_currency=EUR
 
 BaseCurrency EUR:
 {
@@ -210,10 +204,6 @@ BaseCurrency EUR:
     "CAD": {
       "code": "CAD",
       "value": 1.398191
-    },
-    "EUR": {
-      "code": "EUR",
-      "value": 1
     },
     "USD": {
       "code": "USD",
