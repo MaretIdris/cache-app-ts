@@ -2,7 +2,29 @@ import CurrencyCache from "../internal";
 
 test("getCurrency works", () => {
   const cache = new CurrencyCache({});
-  const result = cache.getCurrency("USD");
+  const mockData = {
+    "meta": {
+      "last_updated_at": "2022-11-30T23:59:59Z"
+    },
+    "data": {
+      "USD": {   // <- Remove this key/value pair since it's the base currency.
+        "code": "USD",
+        "value": 1.341371
+      },
+      "CAD": {
+        "code": "CAD",
+        "value": 1.341371
+      },
+      "EUR": {
+        "code": "EUR",
+        "value": 0.959362
+      }
+    }
+  }
+  const timestamp = cache.generateTimestampInSec()
+  const result = cache.addTimeStampAndAddCurrencyToCache("USD", mockData, timestamp);
+  expect(result).toEqual({})
+
 });
 
 // test("fetchingData works", async () => {
