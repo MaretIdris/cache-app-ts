@@ -8,7 +8,7 @@ export interface CurrencyCacheInterface {
   /** Time window in seconds after data is old and needs to be fetched again.  */
   dataTimeWindowInSeconds: number;
   /** Returns all the targetCurrencies conversions */
-  getCurrency?: (baseCurrency: CurrencyName) => BaseCurrencyConversions;
+  getCurrency?: (baseCurrency: CurrencyName) => BaseCurrencyConversionsTo;
   /** Return target currency value as number. */
   // convert: (baseCurrency: string, targetCurrency: string) => number;
   fetchData?: (baseCurrency: CurrencyName) => Promise<any>;
@@ -22,10 +22,11 @@ interface CurrencyInfo {
 // Intersection type.
 type Timestamp = { timestamp: number };
 // Partial makes all properties in the type passed to it optional and that's what we want.
-type BaseCurrencyConversions = Timestamp &
+type BaseCurrencyConversionsTo = Timestamp &
   Partial<Record<CurrencyName, CurrencyInfo>>;
 
-/* We want our data to look like:
+/* We want our data to look like: Map<CurrencyName, BaseCurrencyConversionsTo>
+{
   baseCurrency1: {
     timestamp: number
     targetCurrency1: {
@@ -36,6 +37,7 @@ type BaseCurrencyConversions = Timestamp &
      "code": string
      "value": number     
     }
+  }
   baseCurrency2: {
     timestamp: number
     targetCurrency1: {
@@ -46,18 +48,9 @@ type BaseCurrencyConversions = Timestamp &
      "code": string
      "value": number
     }
-  baseCurrency3: {
-    timestamp: number
-    targetCurrency2: {
-     "code": string
-     "value": number
-    }
-    targetCurrency3: {
-     "code": string
-     "value": number
-    }
   }
-
+  ...
+}
 */
 
 class CurrencyCache {
@@ -66,7 +59,7 @@ class CurrencyCache {
   maxSize: number = 2;
   dataTimeWindowInSeconds = 60;
   private _allCurrencies = ["USD", "EUR", "CAD", "GBP"];
-  private _cache: Map<CurrencyName, CurrencyInfo> = new Map();
+  private _cache: Map<CurrencyName, BaseCurrencyConversionsTo> = new Map();
   private _currencyPopularity = new Map<CurrencyName, number>();
 
   constructor({
@@ -79,45 +72,85 @@ class CurrencyCache {
     this.dataTimeWindowInSeconds = dataTimeWindowInSeconds;
   }
 
-  getCurrency = (baseCurrency: CurrencyName): BaseCurrencyConversions => {
+  getCurrency = (baseCurrency: CurrencyName): BaseCurrencyConversionsTo => {
     /* 
-    - If the cache is empty, fetch the asked data, add it to cache, if evictionPolicy is LRU update _currencyPopularity and return the result.
+    - Check does the cache has the baseCurrency
+         - If yes, check is the data fresh (data is fresh when the time the previous data was fetched minus current time is less then dataTimeWindowInSeconds)
+               - If yes, RETURN the baseCurrency
+         Data is not fresh:🟠fetch the fresh data, clean it up, add it to cache. If evictionPolicy is LRU update _currencyPopularity, RETURN the baseCurrency from the cache.-- 🟠
 
-    - Check if the data is fresh in the cache (data is fresh when the time the previous data was fetched minus current time is less then dataTimeWindowInSeconds)
-          - If yes, if evictionPolicy is LRU update _currencyPopularity, and return the relevant data
-          -  If no, check if cache is full
-              - If yes, check the eviction policy. < - Making space for new data.
-                - If the evicition policy is LRU, remove the least recently used data(first currency from the map)
-                  from the cache.We are making space for the new data which we will be fetching. 
-                - If the eviction policy is LFU, check for the least frequently used data and remove the currency from the cache and set the currencies popularity to 0.
-    
-    - Fetch the data.When get the result, clean up the result, add a timestamp and add the result to the cache. if evictionPolicy is LRU update _currencyPopularity. Return the cleaned up result.  
+    - If the cache is full, make space for the new baseCurrency.
+         - If yes, based on the eviction policy, remove currency from the cache.
+              - If the evictionPolicy is LRU, 
+                    - Remove the first entry from the cache Map.
+              - If the evictionPolicy is LFU,
+                    - Convert the _currencyPopularity Map to array. Sort the array in ascending order. Get the first currency from the array. Remove that currency from the cache. Set that currency popularity to 0 (reset it).
+        
+    - Cache doesn't have the baseCurrency and cache has space: 🟠fetch the baseCurrency data, clean it up, add it to cache. If evictionPolicy is LRU update _currencyPopularity, RETURN the baseCurrency from the cache.-- 🟠
     */
-    if (this._cacheIsEmpty()) {
-      const targetCurrencies = this.fetchData(baseCurrency);
-      const timestampInSec = this._generateTimestampInSec();
-      // Make a currency object and store it in the cache.
-      this._addCurrencyToCache(baseCurrency, targetCurrencies, timestampInSec);
+
+    const currentTimeStampInSec = this._generateTimestampInSec();
+
+    if (this._cache.has(baseCurrency)) {
+      // check the timestamp.
+      const baseCurrencyTimestampInSec =
+        this._cache.get(baseCurrency)!.timestamp;
+      const timeDifferenceInSec =
+        currentTimeStampInSec - baseCurrencyTimestampInSec;
+      if (timeDifferenceInSec < this.dataTimeWindowInSeconds) {
+        // Data is fresh.
+        return this._cache.get(baseCurrency)!;
+      }
+
+      // Data is not fresh.
+      this._fetchAndSanitizeData(baseCurrency, currentTimeStampInSec);
+    }
+
+    // Cache is full. Remove a currency from the cache to make space for the baseCurrency.
+    if (this._cache.size === this.maxSize) {
       if (this.evictionPolicy === "Least Recently Used") {
-        this._incrementCurrencyPopularity(baseCurrency);
+        // Remove the first entry from the cache Map.
+        const firstCurrencyInCache = this._cache.keys().next().value;
+        this._cache.delete(firstCurrencyInCache);
+      } else if (this.evictionPolicy === "Least Frequently Used") {
+        // Sort the _currencyPopularity Map. Least to most used (ascending order).
+        /* Example of a currencyPopularity Map.
+          {
+            "USD": 2,
+            "EUR": 1,
+            "CAD": 1,
+          }
+          Converted to array: [["USD", 2], ["EUR", 1], ["CAD", 1]]
+           */
+        const sortedPopularityArray = [...this._currencyPopularity].sort(
+          (a, b) => a[1] - b[1]
+        );
+        const leastFrequentlyUsedCurrency = sortedPopularityArray[0][0];
+        // Then delete least frequently used currency from the cache and reset it's value to 0 in _currencyPopularity Map.
+        this._cache.delete(leastFrequentlyUsedCurrency);
+        this._resetCurrencyPopularityToZero(leastFrequentlyUsedCurrency);
       }
     }
 
-    return {
-      timestamp: 0,
-      USD: {
-        value: 1.2,
-        code: "USD",
-      },
-      EUR: {
-        value: 1.2,
-        code: "EUR",
-      },
-      GBP: {
-        value: 1.2,
-        code: "GBP",
-      },
-    };
+    return this._fetchAndSanitizeData(baseCurrency, currentTimeStampInSec);
+  };
+
+  private _fetchAndSanitizeData = (
+    baseCurrency: CurrencyName,
+    currentTimeStamp: number
+  ) => {
+    const targetCurrencies = this.fetchData(baseCurrency);
+    this._addTimeStampAndAddCurrencyToCache(
+      baseCurrency,
+      targetCurrencies,
+      currentTimeStamp
+    );
+
+    if (this.evictionPolicy === "Least Recently Used") {
+      this._incrementCurrencyPopularity(baseCurrency);
+    }
+
+    return this._cache.get(baseCurrency)!;
   };
 
   /** Keeping the data fetching function simple. It only fetches data. */
@@ -143,26 +176,22 @@ class CurrencyCache {
   };
 
   /** If currency is removed from the cache, set it's popularity count to zero. */
-  private _resetCurrencyPopularity = (baseCurrency: CurrencyName) => {
+  private _resetCurrencyPopularityToZero = (baseCurrency: CurrencyName) => {
     this._currencyPopularity.set(baseCurrency, 0);
   };
 
-  private _addCurrencyToCache = (
+  private _addTimeStampAndAddCurrencyToCache = (
     baseCurrency: CurrencyName,
     data: any,
     timestamp: number
   ) => {
     const { data: currencyData } = data;
     const currencyDataCopy = _.cloneDeep(currencyData);
-    this._cache.set(baseCurrency, { ...currencyDataCopy, timestamp });
+    this._cache.set(baseCurrency, { ...currencyDataCopy, timestamp }); // Could also write Object.assign({}, currencyDataCopy, { timestamp })
   };
 
   private _generateTimestampInSec = () => {
     return Date.now() * 1000;
-  };
-
-  private _cacheIsEmpty = (): boolean => {
-    return this._cache.size === 0;
   };
 }
 
@@ -212,4 +241,59 @@ BaseCurrency EUR:
   }
 }
 
+---------------------------------------------------------------------------------
+
+DATA SANITIZATION EXERCISE:
+
+BaseCurrency USD:
+{
+  "meta": {
+    "last_updated_at": "2022-11-30T23:59:59Z"
+  },
+  "data": {
+    "USD": {   // <- Remove this key/value pair since it's the base currency.
+      "code": "USD",
+      "value": 1.341371
+    },
+    "CAD": {
+      "code": "CAD",
+      "value": 1.341371
+    },
+    "EUR": {
+      "code": "EUR",
+      "value": 0.959362
+    }
+  }
+}
+
 */
+
+/* const data = {
+  "meta": {
+    "last_updated_at": "2022-11-30T23:59:59Z"
+  },
+  "data": {
+    "USD": {   // <- Remove this key/value pair since it's the base currency.
+      "code": "USD",
+      "value": 1.341371
+    },
+    "CAD": {
+      "code": "CAD",
+      "value": 1.341371
+    },
+    "EUR": {
+      "code": "EUR",
+      "value": 0.959362
+    }
+  }
+}
+
+const baseCurrencyData: any = {};
+
+for (const [ key, value ] of Object.entries(data.data)) { 
+  if (key !== "USD") { 
+    const { code } = value;
+    baseCurrencyData[ key ] = {code};
+  }
+}
+console.log(baseCurrencyData); */
