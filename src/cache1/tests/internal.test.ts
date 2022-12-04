@@ -32,7 +32,7 @@ test("addTimeStampAndAddCurrencyToCache works", () => {
     GBP: { code: "GBP", value: 0.815737 },
     timestamp: 1670110528842000,
   });
-  
+
   expect(cache.cache).toEqual(expectedCache);
 });
 
@@ -74,6 +74,8 @@ it("getTargetCurrencies works", async () => {
   // remove the mock to ensure tests are completely isolated
   (global["fetch"] as any).mockRestore();
 });
+
+// TODO: write more tests. Test the LRU eviction policy. Test the LFU eviction policy.
 
 /* The test below fails. I created this to check that fetching data works. */
 // test("fetchingData works", async () => {
