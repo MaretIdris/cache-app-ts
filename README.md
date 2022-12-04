@@ -11,6 +11,10 @@ Implement a class CurrencyCache that has the following properties and methods:
 1. Go and create a free account on [currencyapi.com](https://app.currencyapi.com/) to get your API key.
 
 
+# Run tests
+```bash
+npm test
+```
 
 
 
