@@ -5,7 +5,7 @@ export interface CurrencyCacheInterface {
    * @param baseCurrency The currency to convert from
    * @returns An object with the target currencies and their values
    */
-  getTargetCurrencies: (baseCurrency: CurrencyName) => TargetCurrencies;
+  getTargetCurrencies: (baseCurrency: CurrencyName) => Promise<TargetCurrencies>;
   /** Return target currency value as number. */
   // convert: (baseCurrency: string, targetCurrency: string) => number;
 }

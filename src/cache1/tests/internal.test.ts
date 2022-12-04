@@ -1,32 +1,81 @@
 import CurrencyCache from "../internal";
 
-test("getCurrency works", () => {
+test("addTimeStampAndAddCurrencyToCache works", () => {
   const cache = new CurrencyCache({});
   const mockData = {
-    "meta": {
-      "last_updated_at": "2022-11-30T23:59:59Z"
+    data: {
+      CAD: {
+        code: "CAD",
+        value: 1.343457,
+      },
+      EUR: {
+        code: "EUR",
+        value: 0.949874,
+      },
+      GBP: {
+        code: "GBP",
+        value: 0.815737,
+      },
     },
-    "data": {
-      "USD": {   // <- Remove this key/value pair since it's the base currency.
-        "code": "USD",
-        "value": 1.341371
-      },
-      "CAD": {
-        "code": "CAD",
-        "value": 1.341371
-      },
-      "EUR": {
-        "code": "EUR",
-        "value": 0.959362
-      }
-    }
-  }
-  const timestamp = cache.generateTimestampInSec()
-  const result = cache.addTimeStampAndAddCurrencyToCache("USD", mockData, timestamp);
-  expect(result).toEqual({})
+    meta: {
+      last_updated_at: "2022-12-01T23:59:59Z",
+    },
+  };
 
+  const mockTimestamp = 1670110528842000;
+  cache.addTimeStampAndAddCurrencyToCache("USD", mockData, mockTimestamp);
+
+  const expectedCache = new Map();
+  expectedCache.set("USD", {
+    CAD: { code: "CAD", value: 1.343457 },
+    EUR: { code: "EUR", value: 0.949874 },
+    GBP: { code: "GBP", value: 0.815737 },
+    timestamp: 1670110528842000,
+  });
+  
+  expect(cache.cache).toEqual(expectedCache);
 });
 
+it("getTargetCurrencies works", async () => {
+  const result = {
+    data: {
+      CAD: {
+        code: "CAD",
+        value: 1.343457,
+      },
+      USD: {
+        code: "USD",
+        value: 0.949874,
+      },
+      GBP: {
+        code: "GBP",
+        value: 0.815737,
+      },
+    },
+    meta: {
+      last_updated_at: "2022-12-01T23:59:59Z",
+    },
+  };
+
+  jest.spyOn(global, "fetch").mockImplementation(
+    () =>
+      Promise.resolve({
+        json: () => Promise.resolve(result),
+      }) as Promise<Response>
+  );
+
+  const cache = new CurrencyCache({});
+  const eurConverionData = await cache.getTargetCurrencies("EUR");
+
+  expect(eurConverionData.CAD!.value).toEqual(result.data.CAD.value);
+  expect(eurConverionData.USD!.value).toEqual(result.data.USD.value);
+  expect(eurConverionData.GBP!.value).toEqual(result.data.GBP.value);
+
+  // remove the mock to ensure tests are completely isolated
+  (global["fetch"] as any).mockRestore();
+});
+
+/* The test below fails. I created this to check that fetching data works. */
 // test("fetchingData works", async () => {
 //   const cache = new CurrencyCache({
 //     evictionPolicy: "Least Recently Used",

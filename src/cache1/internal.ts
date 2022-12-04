@@ -6,7 +6,7 @@ import {
   TargetCurrencies,
 } from "./external";
 
-/* We want our data to look like: Map<CurrencyName, BaseCurrencyConversionsTo>
+/* We want our data to look like: Map<CurrencyName, TargetCurrencies>
 {
   baseCurrency1: {
     timestamp: number
@@ -31,6 +31,29 @@ import {
     }
   }
   ...
+}
+-----------------------------------------------------------------------
+The data that we get from the API is in the following format:
+
+// Request with base currency set to USD:
+https://api.currencyapi.com/v3/latest?apikey={apikey}&currencies=CAD%2CEUR&base_currency=USD
+
+BaseCurrency USD:
+
+{
+  "meta": {
+    "last_updated_at": "2022-11-30T23:59:59Z"
+  },
+  "data": {
+    "CAD": {
+      "code": "CAD",
+      "value": 1.341371
+    },
+    "EUR": {
+      "code": "EUR",
+      "value": 0.959362
+    }
+  }
 }
 */
 
@@ -59,7 +82,9 @@ class CurrencyCache implements CurrencyCacheInterface {
     }
   }
 
-  getTargetCurrencies = (baseCurrency: CurrencyName): TargetCurrencies => {
+  getTargetCurrencies = async (
+    baseCurrency: CurrencyName
+  ): Promise<TargetCurrencies> => {
     /* 
     - Check does the cache has the baseCurrency
          - If yes, check is the data fresh (data is fresh when the time the previous data was fetched minus current time is less then dataTimeWindowInSeconds)
@@ -90,7 +115,10 @@ class CurrencyCache implements CurrencyCacheInterface {
       }
 
       // Data is not fresh.
-      this.fetchAndSanitizeData(baseCurrency, currentTimeStampInSec);
+      return await this.fetchAndSanitizeData(
+        baseCurrency,
+        currentTimeStampInSec
+      );
     }
 
     // Cache is full. Remove a currency from the cache to make space for the baseCurrency.
@@ -119,21 +147,42 @@ class CurrencyCache implements CurrencyCacheInterface {
       }
     }
 
-    return this.fetchAndSanitizeData(baseCurrency, currentTimeStampInSec);
+    return await this.fetchAndSanitizeData(baseCurrency, currentTimeStampInSec);
   };
 
-  fetchAndSanitizeData = (
+  fetchAndSanitizeData = async (
     baseCurrency: CurrencyName,
     currentTimeStamp: number
   ) => {
-    const targetCurrencies = this.fetchData(baseCurrency);
+    const targetCurrencies = await this.fetchData(baseCurrency);
+    /* Data that comes back as a response from the API is shaped like this:
+    {
+      "data": Object {
+          "CAD": Object {
+            "code": "CAD",
+            "value": 1.343457,
+          },
+          "EUR": Object {
+            "code": "EUR",
+            "value": 0.949874,
+          },
+          "GBP": Object {
+            "code": "GBP",
+            "value": 0.815737,
+          },
+        },
+        "meta": Object {
+          "last_updated_at": "2022-12-01T23:59:59Z",
+        },
+    }
+     */
     this.addTimeStampAndAddCurrencyToCache(
       baseCurrency,
       targetCurrencies,
       currentTimeStamp
     );
 
-    if (this.evictionPolicy === "Least Recently Used") {
+    if (this.evictionPolicy === "Least Frequently Used") {
       this.incrementCurrencyPopularity(baseCurrency);
     }
 
@@ -169,11 +218,19 @@ class CurrencyCache implements CurrencyCacheInterface {
 
   addTimeStampAndAddCurrencyToCache = (
     baseCurrency: CurrencyName,
-    data: any,
+    dirtyTargetCurrencies: any,
     timestamp: number
   ) => {
-    const { data: currencyData } = data;
-    const currencyDataCopy = _.cloneDeep(currencyData);
+    const { data } = dirtyTargetCurrencies;
+    /* After destructuring data out of dirtyTargetCurrencies, the data looks like this:
+    {
+      CAD: { code: 'CAD', value: 1.343457 },
+      EUR: { code: 'EUR', value: 0.949874 },
+      GBP: { code: 'GBP', value: 0.815737 }
+    }
+    We add timestamp to it and add it to the cache.
+    */
+    const currencyDataCopy = _.cloneDeep(data);
     this.cache.set(baseCurrency, { ...currencyDataCopy, timestamp }); // Could also write Object.assign({}, currencyDataCopy, { timestamp })
   };
 
@@ -183,104 +240,3 @@ class CurrencyCache implements CurrencyCacheInterface {
 }
 
 export default CurrencyCache;
-
-/* 
-The data that we get from the API is in the following format:
-
-// Request with base currency set to USD:
-https://api.currencyapi.com/v3/latest?apikey={apikey}&currencies=CAD%2CEUR&base_currency=USD
-
-BaseCurrency USD:
-{
-  "meta": {
-    "last_updated_at": "2022-11-30T23:59:59Z"
-  },
-  "data": {
-    "CAD": {
-      "code": "CAD",
-      "value": 1.341371
-    },
-    "EUR": {
-      "code": "EUR",
-      "value": 0.959362
-    }
-  }
-}
----------------------------
-
-// Request with base currency set to EUR:
-https://api.currencyapi.com/v3/latest?apikey={apikey}&currencies=CAD%2CUSD&base_currency=EUR
-
-BaseCurrency EUR:
-{
-  "meta": {
-    "last_updated_at": "2022-11-30T23:59:59Z"
-  },
-  "data": {
-    "CAD": {
-      "code": "CAD",
-      "value": 1.398191
-    },
-    "USD": {
-      "code": "USD",
-      "value": 1.042359
-    }
-  }
-}
-
----------------------------------------------------------------------------------
-
-DATA SANITIZATION EXERCISE:
-
-BaseCurrency USD:
-{
-  "meta": {
-    "last_updated_at": "2022-11-30T23:59:59Z"
-  },
-  "data": {
-    "USD": {   // <- Remove this key/value pair since it's the base currency.
-      "code": "USD",
-      "value": 1.341371
-    },
-    "CAD": {
-      "code": "CAD",
-      "value": 1.341371
-    },
-    "EUR": {
-      "code": "EUR",
-      "value": 0.959362
-    }
-  }
-}
-
-*/
-
-/* const data = {
-  "meta": {
-    "last_updated_at": "2022-11-30T23:59:59Z"
-  },
-  "data": {
-    "USD": {   // <- Remove this key/value pair since it's the base currency.
-      "code": "USD",
-      "value": 1.341371
-    },
-    "CAD": {
-      "code": "CAD",
-      "value": 1.341371
-    },
-    "EUR": {
-      "code": "EUR",
-      "value": 0.959362
-    }
-  }
-}
-
-const baseCurrencyData: any = {};
-
-for (const [ key, value ] of Object.entries(data.data)) { 
-  if (key !== "USD") { 
-    const { code } = value;
-    baseCurrencyData[ key ] = {code};
-  }
-}
-console.log(baseCurrencyData); */
